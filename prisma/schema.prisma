@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String   @id @default(uuid())
+  name        String
+  phoneNumber String   @unique @map("phone_number")
+  createdAt   DateTime @default(now())
+  watches     Watch[]
+
+  @@map("users")
+}
+
+model Company {
+  id          String   @id @default(uuid())
+  companyName String   @map("company_name")
+  careerUrl   String   @unique @map("career_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updateddAt  DateTime @updatedAt @map("updated_at")
+  watches     Watch[]
+
+  @@map("companies")
+}
+
+model Watch {
+  id         String   @id @default(uuid())
+  userId     String
+  companyId  String
+  role       String
+  note       String?
+  isDeleted  Boolean  @default(false)
+  isPaused   Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updateddAt DateTime @updatedAt @map("updated_at")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId, role])
+  @@map("watch")
+}
