@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get } from '@nestjs/common';
 import { ScraperService } from './scraper.service';
 import { HomepageService } from './discovery/homepage/homepage.service';
 
@@ -10,7 +10,7 @@ export class ScraperController {
   ) {}
 
   @Get()
-  FindCareerPage() {
-    return this.homepageService.fetchHomepage('paystackn82bns.com');
+  FindCareerPage(@Body('company') body: string) {
+    return this.homepageService.details(body);
   }
 }
