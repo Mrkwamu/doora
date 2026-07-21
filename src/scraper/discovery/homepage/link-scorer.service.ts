@@ -8,6 +8,9 @@ import {
 } from './dicovery.constants';
 import { LINKSCORE } from './discovery.enum';
 
+export interface careerLink {
+  link: string;
+}
 @Injectable()
 export class CareerLinkMatcherService {
   scoreLinks(links: ExtractionResult[], companyDomain: string): ScoredLink[] {
@@ -49,5 +52,21 @@ export class CareerLinkMatcherService {
       scored.push({ link, score });
     }
     return scored;
+  }
+
+  getBestLink(links: ScoredLink[]): ScoredLink | null {
+    if (links.length === 0) {
+      return null;
+    }
+
+    let bestLink = links[0];
+
+    for (const link of links) {
+      if (link.score > bestLink.score) {
+        bestLink = link;
+      }
+    }
+
+    return bestLink;
   }
 }

@@ -38,10 +38,13 @@ export class LinkExtractorService {
 
         const hostname = url.hostname;
 
-        if (SOCIAL_DOMAINS.some((domain) => hostname.endsWith(domain))) {
+        if (
+          SOCIAL_DOMAINS.some(
+            (domain) => hostname === domain || hostname.endsWith(`.${domain}`),
+          )
+        ) {
           return;
         }
-
         if (FILE_EXTENSIONS.some((domain) => url.pathname.endsWith(domain))) {
           return;
         }

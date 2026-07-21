@@ -11,6 +11,6 @@ export class ScraperController {
 
   @Get()
   FindCareerPage(@Body('company') body: string) {
-    return this.homepageService.details(body);
+    return this.homepageService.fetchHomepage(body);
   }
 }

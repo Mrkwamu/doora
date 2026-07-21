@@ -4,17 +4,26 @@ type HomePageStatus = 'found' | 'not_found' | 'invalid_domain';
 
 export interface CareerPageResult {
   status: CareerPageStatus;
-  url: string | null;
+  homepageUrl: string | null;
   method: 'axios' | 'playwright' | null;
 }
 
 export interface HomePageResult {
   status: HomePageStatus;
-  url: string | null;
-  data: string | null;
+  homepageUrl: string | null;
+  bestLink: {
+    text: string | null;
+    href: string;
+    score: number;
+  } | null;
 }
 
 export interface PlaywrightResult {
-  url: string;
-  data: string | null;
+  status: HomePageStatus;
+  homepageUrl: string;
+  bestLink: {
+    text: string | null;
+    href: string;
+    score: number;
+  } | null;
 }

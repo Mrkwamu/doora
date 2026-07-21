@@ -8,6 +8,9 @@ import { PlaywrightService } from '../../../playwright/playwright.service';
 import { LinkExtractorService } from './link-extractor.service';
 import { CareerLinkMatcherService } from './link-scorer.service';
 
+import { normalizedUrl } from '../../../utils/normalize-url';
+import { ScoredLink } from './discovery.dto';
+
 type HandleRequestResult = PlaywrightResult | 'invalid_domain' | null;
 
 const DOMAIN_FAILURES = new Set(['ENOTFOUND', 'EAI_AGAIN']);
@@ -15,191 +18,7 @@ const DOMAIN_FAILURES = new Set(['ENOTFOUND', 'EAI_AGAIN']);
 const TIMEOUT_FAILURE = new Set(['ECONNABORTED', 'ETIMEDOUT']);
 const NETWORK_FAILURE = new Set(['ECONNREFUSED', 'ECONNRESET']);
 
-// const TEST = `
-// <!DOCTYPE html>
-// <html lang="en">
-// <head>
-//   <meta charset="UTF-8" />
-//   <title>Doora Link Extraction Test</title>
-// </head>
-
-// <body>
-
-// <header>
-//   <nav>
-//     <!-- Internal -->
-//     <a href="/">Home</a>
-//     <a href="/about">About</a>
-//     <a href="/pricing">Pricing</a>
-//     <a href="/contact">Contact</a>
-
-//     <!-- Career pages -->
-//     <a href="/careers">Careers</a>
-//     <a href="/jobs">Jobs</a>
-//     <a href="/join-us">Join Us</a>
-//     <a href="/work-with-us">Work With Us</a>
-
-//     <!-- Duplicate -->
-//     <a href="/careers">Careers Duplicate</a>
-
-//     <!-- Relative -->
-//     <a href="open-roles">Open Roles</a>
-
-//     <!-- Absolute -->
-//     <a href="https://company.com/vacancies">Vacancies</a>
-
-//     <!-- Protocol Relative -->
-//     <a href="//company.com/hiring">Hiring</a>
-
-//     <!-- Query -->
-//     <a href="/careers?department=engineering">
-//       Engineering Careers
-//     </a>
-
-//     <!-- Fragment -->
-//     <a href="/careers#backend">
-//       Backend Team
-//     </a>
-
-//     <!-- Mixed case -->
-//     <a href="/CAREERS">CAREERS</a>
-
-//     <!-- Nested -->
-//     <a href="/reports">
-//         <span>Annual</span>
-//         Report
-//     </a>
-
-//     <!-- ATS -->
-//     <a href="https://boards.greenhouse.io/company">
-//       Greenhouse
-//     </a>
-
-//     <a href="https://jobs.ashbyhq.com/company">
-//       Ashby
-//     </a>
-
-//     <a href="https://jobs.lever.co/company">
-//       Lever
-//     </a>
-
-//     <a href="https://apply.workable.com/company">
-//       Workable
-//     </a>
-
-//     <!-- External -->
-//     <a href="https://stripe.com">
-//       Stripe
-//     </a>
-
-//     <a href="https://openai.com">
-//       OpenAI
-//     </a>
-
-//     <!-- Social -->
-//     <a href="https://linkedin.com/company/company">
-//       LinkedIn
-//     </a>
-
-//     <a href="https://twitter.com/company">
-//       Twitter
-//     </a>
-
-//     <a href="https://x.com/company">
-//       X
-//     </a>
-
-//     <a href="https://facebook.com/company">
-//       Facebook
-//     </a>
-
-//     <a href="https://instagram.com/company">
-//       Instagram
-//     </a>
-
-//     <a href="https://youtube.com/company">
-//       YouTube
-//     </a>
-
-//     <a href="https://tiktok.com/@company">
-//       TikTok
-//     </a>
-
-//     <!-- Documents -->
-//     <a href="/privacy.pdf">
-//       Privacy PDF
-//     </a>
-
-//     <a href="/report.zip">
-//       Download Report
-//     </a>
-
-//     <a href="/image.png">
-//       Logo
-//     </a>
-
-//     <!-- Invalid -->
-//     <a href="#">Hash</a>
-
-//     <a href="">Empty</a>
-
-//     <a>No href</a>
-
-//     <a href="javascript:void(0)">
-//       Javascript
-//     </a>
-
-//     <a href="mailto:hello@company.com">
-//       Email
-//     </a>
-
-//     <a href="tel:+2348012345678">
-//       Phone
-//     </a>
-
-//     <!-- Broken -->
-//     <a href="::::invalid">
-//       Invalid URL
-//     </a>
-
-//   </nav>
-// </header>
-
-// <main>
-//   <h1>Welcome</h1>
-// </main>
-
-// <div id="footer"></div>
-
-// <script>
-
-// setTimeout(() => {
-
-// document.getElementById('footer').innerHTML = \`
-
-// <footer>
-
-// <a href="/about">About</a>
-
-// <a href="/careers">Careers</a>
-
-// <a href="/blog">Blog</a>
-
-// <a href="/faq">FAQ</a>
-
-// <a href="/support">Support</a>
-
-// </footer>
-
-// \`;
-
-// },1500);
-
-// </script>
-
-// </body>
-// </html>
-// `;
+export const MIN_CONFIDENCE_SCORE = 30;
 
 @Injectable()
 export class HomepageService {
@@ -220,8 +39,8 @@ export class HomepageService {
   }
 
   async fetchHomepage(company: string): Promise<HomePageResult> {
-    const normalizedCompanyDomain = company.toLowerCase().trim();
-    const url = `https://${normalizedCompanyDomain}`;
+    const url = normalizedUrl(company);
+    const hostname = new URL(url).hostname.replace(/^www\./, '').toLowerCase();
     try {
       const response = await lastValueFrom(
         this.httpService.get<string>(url, {
@@ -241,11 +60,29 @@ export class HomepageService {
       const finalUrl = request.res?.responseUrl ?? url;
 
       if (response.status === 200) {
-        this.logger.log(`Found via axios: ${finalUrl}`);
+        const bestLink = this.findBestCareerLink(
+          response.data,
+          finalUrl,
+          hostname,
+        );
+
+        if (!bestLink) {
+          this.logger.warn(
+            `Axios found no confident career links for ${finalUrl}. Falling back to Playwright.`,
+          );
+
+          return this.fetchWithPlaywright(finalUrl);
+        }
+
+        this.logger.log(`Homepage fetched successfully via Axios: ${finalUrl}`);
         return {
           status: 'found',
-          url: finalUrl,
-          data: response.data,
+          homepageUrl: finalUrl,
+          bestLink: {
+            text: bestLink.link.text,
+            href: bestLink.link.href,
+            score: bestLink.score,
+          },
         };
       }
     } catch (error) {
@@ -254,27 +91,27 @@ export class HomepageService {
       if (result === 'invalid_domain') {
         return {
           status: 'invalid_domain',
-          url: null,
-          data: null,
+          homepageUrl: null,
+          bestLink: null,
         };
       }
 
       if (result) {
         return {
           status: 'found',
-          url: result.url,
-          data: result.data,
+          homepageUrl: result.homepageUrl,
+          bestLink: result.bestLink,
         };
       }
 
       return {
         status: 'not_found',
-        url: null,
-        data: null,
+        homepageUrl: null,
+        bestLink: null,
       };
     }
 
-    return { status: 'not_found', url: null, data: null };
+    return { status: 'not_found', homepageUrl: null, bestLink: null };
   }
 
   private async handleRequestError(
@@ -327,12 +164,14 @@ export class HomepageService {
 
   async fetchWithPlaywright(url: string): Promise<PlaywrightResult> {
     const browser = this.playwrightService.getBrowser();
+
     const context = await browser.newContext({
       userAgent: this.userAgent,
     });
 
     try {
       const page = await context.newPage();
+
       const response = await page.goto(url, {
         timeout: this.timeout,
         waitUntil: 'domcontentloaded',
@@ -342,39 +181,88 @@ export class HomepageService {
         this.logger.debug(
           `Playwright got non-ok response (${response?.status()}) for ${url}`,
         );
+
         return {
-          url: page.url(),
-          data: null,
+          status: 'not_found',
+          homepageUrl: page.url(),
+          bestLink: null,
         };
       }
 
-      this.logger.log(`Homepage gotten via playwright: ${url}`);
-      const data = await page.content();
+      this.logger.log(`Homepage fetched via Playwright: ${page.url()}`);
+
+      const companyDomain = new URL(page.url()).hostname.replace(/^www\./, '');
+
+      let html = await page.content();
+
+      let bestLink = this.findBestCareerLink(html, page.url(), companyDomain);
+
+      if (!bestLink) {
+        this.logger.warn(
+          `No confident links found. Scrolling and trying again...`,
+        );
+
+        await page.evaluate(() => {
+          window.scrollBy(0, window.innerHeight);
+        });
+
+        await page.waitForTimeout(1000);
+
+        html = await page.content();
+
+        bestLink = this.findBestCareerLink(html, page.url(), companyDomain);
+
+        if (!bestLink) {
+          this.logger.warn(`Still no confident links after scrolling.`);
+
+          return {
+            status: 'not_found',
+            homepageUrl: page.url(),
+            bestLink: null,
+          };
+        }
+      }
+
       return {
-        url: page.url(),
-        data,
+        status: 'found',
+        homepageUrl: page.url(),
+        bestLink: {
+          text: bestLink.link.text,
+          href: bestLink.link.href,
+          score: bestLink.score,
+        },
       };
     } catch (error) {
       this.logger.error(`Playwright failed on ${url}`, error);
+
       return {
-        url,
-        data: null,
+        status: 'not_found',
+        homepageUrl: url,
+        bestLink: null,
       };
     } finally {
       await context.close();
     }
   }
+  private findBestCareerLink(
+    html: string,
+    baseUrl: string,
+    companyDomain: string,
+  ): ScoredLink | null {
+    const links = this.extractorService.extractHtml(html, baseUrl);
 
-  async details(company: string) {
-    const result = await this.fetchHomepage(company);
-    if (!result.url) return;
-    const baseUrl = result.url;
+    if (links.length === 0) {
+      return null;
+    }
 
-    const companyDomain = new URL(baseUrl).hostname
-      .replace(/^www\./, '')
-      .toLowerCase();
+    const scoredLinks = this.scorer.scoreLinks(links, companyDomain);
 
-    const results = this.extractorService.extractHtml(result.data!, baseUrl);
-    return this.scorer.scoreLinks(results, companyDomain);
+    const bestLink = this.scorer.getBestLink(scoredLinks);
+
+    if (!bestLink || bestLink.score < MIN_CONFIDENCE_SCORE) {
+      return null;
+    }
+
+    return bestLink;
   }
 }
