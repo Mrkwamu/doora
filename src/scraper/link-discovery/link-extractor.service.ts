@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
-import { ExtractionResult } from './discovery.dto';
-import { SOCIAL_DOMAINS, FILE_EXTENSIONS } from './dicovery.constants';
+import {
+  FILE_EXTENSIONS,
+  SOCIAL_DOMAINS,
+} from './constants/link-discovery.constants';
+import { ExtractionResult } from './link-discovery.dto';
 
 @Injectable()
 export class LinkExtractorService {
@@ -20,7 +23,7 @@ export class LinkExtractorService {
         !href ||
         href === '#' ||
         href.startsWith('javascript:') ||
-        href.startsWith('mailto') ||
+        href.startsWith('mailto:') ||
         href.startsWith('tel:')
       ) {
         return;
@@ -28,6 +31,16 @@ export class LinkExtractorService {
 
       try {
         const url = new URL(href, baseUrl);
+        const base = new URL(baseUrl);
+        const isSamePageAnchor =
+          url.hash !== '' &&
+          url.origin === base.origin &&
+          url.pathname === base.pathname &&
+          url.search === base.search;
+
+        if (isSamePageAnchor) {
+          return;
+        }
 
         const normalizedUrl = url.href;
 
@@ -45,7 +58,7 @@ export class LinkExtractorService {
         ) {
           return;
         }
-        if (FILE_EXTENSIONS.some((domain) => url.pathname.endsWith(domain))) {
+        if (FILE_EXTENSIONS.some((ext) => url.pathname.endsWith(ext))) {
           return;
         }
 

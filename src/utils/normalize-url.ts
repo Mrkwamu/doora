@@ -1,4 +1,4 @@
-export function normalizedUrl(companyDomain: string): string {
+export function normalizeCompany(companyDomain: string): string {
   const domain = companyDomain
     .trim()
     .toLowerCase()

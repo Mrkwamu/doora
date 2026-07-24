@@ -1,21 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ScraperController } from './scraper.controller';
-import { ScraperService } from './scraper.service';
-import { HttpModule } from '@nestjs/axios';
-import { PlaywrightModule } from '../playwright/playwright.module';
-import { ConfigModule } from '@nestjs/config';
-import { HomepageService } from './discovery/homepage/homepage.service';
-import { LinkExtractorService } from './discovery/homepage/link-extractor.service';
-import { CareerLinkMatcherService } from './discovery/homepage/link-scorer.service';
+import { LinkDiscoveryModule } from './link-discovery/link-discovery.module';
+import { HomepageModule } from './homepage/homepage.module';
+import { PageFetcherModule } from './page-fetcher/page-fetcher.module';
 
 @Module({
-  imports: [HttpModule, PlaywrightModule, ConfigModule],
+  imports: [PageFetcherModule, HomepageModule, LinkDiscoveryModule],
   controllers: [ScraperController],
-  providers: [
-    ScraperService,
-    HomepageService,
-    LinkExtractorService,
-    CareerLinkMatcherService,
-  ],
 })
 export class ScraperModule {}

@@ -1,18 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { ExtractionResult, ScoredLink } from './discovery.dto';
+import { ExtractionResult, ScoredLink } from './link-discovery.dto';
+import { LINKSCORE } from './link-discovery.enum';
 import {
-  CAREER_TEXT_KEYWORDS,
-  CAREER_PATHS,
   ATS_DOMAINS,
   CAREER_HOST_SUFFIXES,
-} from './dicovery.constants';
-import { LINKSCORE } from './discovery.enum';
+  CAREER_PATHS,
+  CAREER_TEXT_KEYWORDS,
+} from './constants/link-discovery.constants';
 
-export interface careerLink {
-  link: string;
-}
 @Injectable()
-export class CareerLinkMatcherService {
+export class LinkScorerService {
   scoreLinks(links: ExtractionResult[], companyDomain: string): ScoredLink[] {
     const scored: ScoredLink[] = [];
 

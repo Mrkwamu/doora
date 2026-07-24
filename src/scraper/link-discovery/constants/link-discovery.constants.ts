@@ -49,7 +49,6 @@ export const CAREER_PATHS = [
   'employment',
   'opportunities',
   'opportunity',
-  'apply',
   'positions',
   'position',
   'our-team',
@@ -111,15 +110,10 @@ export const CAREER_TEXT_KEYWORDS = [
   'opportunity',
   'positions',
   'position',
-  'apply',
-  'apply now',
   'see openings',
   'view openings',
   'current openings',
   'current opportunities',
-  'our team',
-  'build with us',
-  'come build with us',
   'life at',
 ] as const;
 
